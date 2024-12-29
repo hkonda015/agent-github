@@ -1,0 +1,63 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, feature ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm init -y
+        npm install html-minifier css-minifier-webpack-plugin --save-dev
+
+    - name: Lint HTML
+      uses: actionsx/prettier@v2
+      with:
+        args: --check *.html
+
+    - name: Validate HTML
+      run: |
+        npx html-validate index.html
+
+    - name: Minify assets
+      run: |
+        npx html-minifier --collapse-whitespace --remove-comments --remove-optional-tags --remove-redundant-attributes --remove-script-type-attributes --remove-tag-whitespace --use-short-doctype --minify-css true --minify-js true --input-dir ./ --output-dir ./dist --file-ext html
+        cp style.css ./dist/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: website-build
+        path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: website-build
+        path: ./dist
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist
+        full_commit_message: Deploy website to GitHub Pages
